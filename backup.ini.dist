@@ -1,0 +1,15 @@
+[CONFIG]
+# BackupDays: Days to store the backups
+BackupDays = 3
+
+# ExcludeFile: File with names of files and directories to exclude from backup
+# ExcludeFile = exclude-files
+
+# Develop: N for a basic log or Y for a detailed log
+Develop = N
+
+[DIR]
+# DirBackup: Base directory where store the backups
+DirBackup = /SELECT_BASE_DIR/backups
+# DirLog: Log directory
+DirLog = ${DirBackup}/logs

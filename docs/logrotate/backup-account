@@ -1,0 +1,13 @@
+# To mantain the size of log files controlled, copy this file to /etc/logrotate.d
+# You must change the "/directory" for the "DirBackup" option in backup.ini
+# You must change the "user" and "group" for the owner of this directory
+# If you want to know more about logrotate options: man logrotate
+
+/directory/logs/*.full.log {
+        weekly
+        missingok
+        rotate 12
+        compress
+        notifempty
+	create 640 user group
+}
