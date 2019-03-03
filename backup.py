@@ -26,38 +26,18 @@ import constants as const
 def process_parameters():
     """ Process the command line arguments and show the help """
 
-    description = ('Decremental backup of directories and '
-                   'databases from local or remote server.')
-    epilog = ('''
-Consult README.md for a more detailed description.
-Web: https://github.com/hsicilia/backup-account
-              ''')
     parser = ArgumentParser(
-        description=description,
-        epilog=epilog,
+        description=const.SCRIPT_DESCRIPION,
+        epilog=const.SCRIPT_EPILOG,
         formatter_class=RawTextHelpFormatter)
-    parser.add_argument('type', help='type of backup',
-                        choices=const.TYPES)
-    parser.add_argument('-n', '--name',
-                        help='copy name', required=True)
-    parser.add_argument('-s', '--serv',
-                        help='remote server URL')
-    parser.add_argument('-u', '--user',
-                        help='remote server user')
-    parser.add_argument('-p', '--port', type=int,
-                        help='remote server port', default=22)
-    parser.add_argument('-c', '--copy-dir',
-                        help='copy directory', required=True)
-    parser.add_argument('-b', '--db-server',
-                        help='activate database backup and select '
-                             'database server',
-                        choices=const.DATABASES)
-    parser.add_argument('-e', '--db-user',
-                        help='database user')
-    parser.add_argument('-w', '--db-pass',
-                        help='database user password')
-    parser.add_argument('-d', '--db-name',
-                        help='database name')
+
+    for arg in const.ARGUMENTS:
+        # if arg doesn't start with a "-" it's a positional argument
+        # and doesn't accept a long version of the argument
+        if arg[0][0] != '-':
+            parser.add_argument(arg[0], **arg[1])
+        else:
+            parser.add_argument(arg[0], arg[1], **arg[2])
 
     try:
         args = parser.parse_args()
