@@ -3,6 +3,8 @@
 A Python3 script to backup copies of local or remote directories
 and MySQL/MariaDB databases
 
+Script URL: https://github.com/hsicilia/backup-account
+
 This source code Form is subject to the terms of the GNU Affero
 General Public License, version 3 (AGPLv3).
 If a copy of the AGPLv3 was not distributed with this file, you can
@@ -15,7 +17,7 @@ import configparser
 import logging
 import os
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
 from datetime import datetime
 
 import constants as const
@@ -24,9 +26,16 @@ import constants as const
 def process_parameters():
     """ Process the command line arguments and show the help """
 
-    description = 'Make a backup of selected type.'
-
-    parser = ArgumentParser(description=description)
+    description = ('Decremental backup of directories and '
+                   'databases from local or remote server.')
+    epilog = ('''
+Consult README.md for a more detailed description.
+Web: https://github.com/hsicilia/backup-account
+              ''')
+    parser = ArgumentParser(
+        description=description,
+        epilog=epilog,
+        formatter_class=RawTextHelpFormatter)
     parser.add_argument('type', help='type of backup',
                         choices=const.TYPES)
     parser.add_argument('-n', '--name',
