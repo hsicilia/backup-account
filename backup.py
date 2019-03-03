@@ -9,6 +9,8 @@ If a copy of the AGPLv3 was not distributed with this file, you can
 obtain one at https://www.gnu.org/licenses/agpl-3.0.html.
 """
 
+__version__ = '0.5'
+
 import configparser
 import logging
 import os
@@ -33,25 +35,36 @@ def process_parameters():
                         help='remote server user')
     parser.add_argument('-p', '--port', type=int,
                         help='remote server port', default=22)
-    parser.add_argument('-d', '--copy-dir',
+    parser.add_argument('-c', '--copy-dir',
                         help='copy directory', required=True)
-    parser.add_argument('-m', '--mysql-user',
-                        help='MySQL user')
-    parser.add_argument('-w', '--mysql-pass',
-                        help='MySQL password')
+    parser.add_argument('-d', '--database',
+                        help='activate database backup and select '
+                             'database server',
+                        choices=DATABASES)
+    parser.add_argument('-e', '--db-user',
+                        help='database user')
+    parser.add_argument('-w', '--db-pass',
+                        help='database password')
 
     try:
         args = parser.parse_args()
     except IOError as msg:
         parser.error(str(msg))
-        sys.exit(-1)
+        sys.exit(EXIT_ARGPARSE_ERROR)
 
+    # "remote" option require --serv and --user
     if args.type == REMOTE_TYPE:
-        if (args.serv is None or
-                args.user is None):
+        if (args.serv is None or args.user is None):
             parser.error('For "remote" type the parameters --serv '
                          'and --user are required')
-            exit(-1)
+            exit(EXIT_ARGPARSE_ERROR)
+
+    if (args.database is None
+        and (args.db_user is not None
+             or args.db_pass is not None)):
+        parser.error('Parameters --db-user or --db-pass '
+                     'are not allowed if --database is not present')
+        exit(EXIT_ARGPARSE_ERROR)
 
     return parser, args
 
@@ -75,45 +88,56 @@ def log_header(level, text):
 
 
 def backup_mysql(parser, args):
-    log_header(2, 'MySQL Backup')
-    # Rotate backup files
-    # First delete the last backup
-    mysql_last = mysql_file + '.' + str(backup_days) + '.tar.gz'
-    if os.path.exists(mysql_last):
-        os.remove(mysql_last)
-    # Rotate the rest of backups
-    for i in range(backup_days - 1, 0, -1):
-        mysql_source = mysql_file + '.' + str(i) + '.tar.gz'
-        mysql_destination = mysql_file + '.' + str(i + 1) + '.tar.gz'
-        if os.path.exists(mysql_source):
-            os.rename(mysql_source, mysql_destination)
+    """ Dump MySQL/MariaDB databases and rotate backup files """
+
+    log_header(LOG_LEVEL_SECUNDARY, 'MySQL Backup')
 
     # Dump MySQL databases
-    command = ('nice -n 20 mysqldump --all-databases -u'
-               + args.mysql_user + ' -p' + args.mysql_pass + ' --opt')
+    command = 'nice -n 20 mysqldump --all-databases --opt'
+
+    # If args.db_user or args.db-pass are void the script take the values
+    # from some of the default .cnf files: ~/.my.cnf or ~/.mylogin.cnf
+    # See: https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+    if args.db_user is not None:
+        command = command + ' -u ' + args.db_user
+    if args.db_pass is not None:
+        command = command + ' -p' + args.db_pass
     logger.debug(command)
 
     if args.type == LOCAL_TYPE:
-        local_command = command + ' > ' + mysql_file
-        logger.debug(local_command)
-        os.system(local_command)
+        command = command + ' > ' + mysql_file
     elif args.type == REMOTE_TYPE:
-        remote_command = ('ssh -p ' + str(args.port) + ' '
-                          + args.user + '@' + args.serv
-                          + ' ' + command + ' > ' + mysql_file)
-        logger.debug(remote_command)
-        os.system(remote_command)
+        command = ('ssh -p ' + str(args.port) + ' '
+                   + args.user + '@' + args.serv
+                   + ' ' + command + ' > ' + mysql_file)
 
-    # Compress the sql file
-    os.system('tar -czPf ' + mysql_file + '.1.tar.gz ' + mysql_file)
-    os.system('ls -lh ' + mysql_file + ' ' + mysql_file +
-              '.1.tar.gz >> ' + log_last)
+    logger.debug(command)
+    exit_value = os.system(command)
+    logger.debug('EXIT:' + str(exit_value))
+
+    if (exit_value == EXIT_NO_ERROR):
+        # Rotate backup files
+        # First delete the last backup
+        mysql_last = mysql_file + '.' + str(backup_days) + '.tar.gz'
+        if os.path.exists(mysql_last):
+            os.remove(mysql_last)
+        # Rotate the rest of backups
+        for i in range(backup_days - 1, 0, -1):
+            mysql_source = mysql_file + '.' + str(i) + '.tar.gz'
+            mysql_destination = mysql_file + '.' + str(i + 1) + '.tar.gz'
+            if os.path.exists(mysql_source):
+                os.rename(mysql_source, mysql_destination)
+
+        # Compress the sql file
+        os.system('tar -czPf ' + mysql_file + '.1.tar.gz ' + mysql_file)
+        os.system('ls -lh ' + mysql_file + ' ' + mysql_file +
+                  '.1.tar.gz >> ' + log_last)
 
 
 def backup_sync(parser, args):
     """Syncronize files"""
 
-    log_header(2, 'rsync copy')
+    log_header(LOG_LEVEL_SECUNDARY, 'rsync copy')
 
     command = ("rsync -azh -e 'ssh -p " + str(args.port) +
                "' --exclude-from=" + exclude_file +
@@ -149,6 +173,13 @@ def backup_files(parser, args):
 if __name__ == "__main__":
     # Constants
     TYPES = [LOCAL_TYPE, REMOTE_TYPE] = ['local', 'remote']
+    DATABASES = [DB_MYSQL] = ['mysql']
+
+    LOG_LEVEL_PRIMARY = 1
+    LOG_LEVEL_SECUNDARY = 2
+
+    EXIT_NO_ERROR = 0
+    EXIT_ARGPARSE_ERROR = -1
 
     # Calculated
     date = datetime.now().strftime('%d/%m/%Y-%H:%M')
@@ -209,7 +240,7 @@ if __name__ == "__main__":
     logger.debug(log_full)
 
     # MySQL Backup
-    if args.mysql_user is not None and args.mysql_pass is not None:
+    if args.database == DB_MYSQL:
         backup_mysql(parser, args)
 
     if args.type == REMOTE_TYPE:
@@ -217,7 +248,7 @@ if __name__ == "__main__":
 
     backup_files(parser, args)
 
-    log_header(1, 'BACKUP END')
+    log_header(LOG_LEVEL_PRIMARY, 'BACKUP END')
     logger.info('')
 
     # Concat log_last with log_full

@@ -28,14 +28,28 @@ A Python3 script to backup copies of local or remote directories and MySQL/Maria
       * **-p**/**--port**: remote server port
     * Common arguments:
       * **-n**/**--name**: backup destination directory name
-      * **-d**/**--copy-dir**: backup source directory to copy
+      * **-c**/**--copy-dir**: backup source directory to copy
       * **-h**/**--help**: show the help
-    * MySQL arguments:
-      * **-m**/**--mysql-user**: MySQL user
-      * **-w**/**--mysql-pass**: MySQL password
-  * Example of local backup: *./backup.py local -n localcopy -d /home/user/dirtocopy*
-  * Example of local backup with MySQL: *./backup.py local -n localcopy -d /home/user/dirtocopy -m mysqluser -w mysqlpassword*
-  * Example of remote backup with MySQL: *./backup.py remote -n localcopy -s server.com -u user -p 22 -d /home/user/dirtocopy -m mysqluser -w mysqlpassword*
+    * Database arguments:
+      * **-d**/**--database** <database server>: Can be only *mysql* for the moment.
+      * **-e**/**--db-user**: Database user
+      * **-w**/**--db-pass**: Database password
+  * Example of local backup: *./backup.py local -n localcopy -c /home/user/dirtocopy*
+  * Example of local backup with MySQL: *./backup.py local -n localcopy -c /home/user/dirtocopy -d mysql -m mysqluser -w mysqlpassword*
+  * Example of remote backup with MySQL and .cnf configuration file: *./backup.py remote -n localcopy -s server.com -u user -p 22 -c /home/user/dirtocopy -d mysql*
+
+### Databases
+There are three parameters that controls the database backup:
+  * **-d**/**--database**: is mandatory if you want to make a database backup
+  * **-e**/**--db-user** and **-w**/**--db-pass**: are optionals. If you don't add any of them, *mysqldump* will try to get the information automatically from the files *~/.my.log* or *~/.mylogin.log*.
+
+*.my.log* file must be in the user's home directory (local or remote, depending on the type of backup) and the content should look similar to this:
+
+~~~~
+[mysqldump]
+user=myuser
+password="mypassword"
+~~~~
 
 ## Author
 
