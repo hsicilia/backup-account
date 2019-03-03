@@ -31,17 +31,22 @@ A Python3 script to backup copies of local or remote directories and MySQL/Maria
       * **-c**/**--copy-dir**: backup source directory to copy
       * **-h**/**--help**: show the help
     * Database arguments:
-      * **-d**/**--database** <database server>: Can be only *mysql* for the moment.
+      * **-b**/**--db-server** <database server>: can be *mysql* or *postgresql*.
       * **-e**/**--db-user**: Database user
-      * **-w**/**--db-pass**: Database password
+      * **-w**/**--db-pass**: Database user password
+      * **-d**/**--db-name**: Database name
   * Example of local backup: *./backup.py local -n localcopy -c /home/user/dirtocopy*
-  * Example of local backup with MySQL: *./backup.py local -n localcopy -c /home/user/dirtocopy -d mysql -m mysqluser -w mysqlpassword*
-  * Example of remote backup with MySQL and .cnf configuration file: *./backup.py remote -n localcopy -s server.com -u user -p 22 -c /home/user/dirtocopy -d mysql*
+  * Example of local backup with MySQL: *./backup.py local -n localcopy -c /home/user/dirtocopy -b mysql -m mysqluser -w mysqlpassword*
+  * Example of remote backup with MySQL and *.cnf* configuration file: *./backup.py remote -n remotecopy -s server.com -u user -p 22 -c /home/user/dirtocopy -b mysql*
+  * Example of remote backup with PostgreSQL and *.pgpass* file: *./backup.py remote -n remotecopy -s server.com -u user -p 22 -c /home/user/dirtocopy -b postgresql -d database*
 
 ### Databases
-There are three parameters that controls the database backup:
-  * **-d**/**--database**: is mandatory if you want to make a database backup
-  * **-e**/**--db-user** and **-w**/**--db-pass**: are optionals. If you don't add any of them, *mysqldump* will try to get the information automatically from the files *~/.my.log* or *~/.mylogin.log*.
+There are four parameters that controls the database backup:
+  * **-b**/**--db-server**: *mysql* or *postgresql*. Is mandatory if you want to make a database backup.
+  
+#### MySQL/MariaDB
+  * **-e**/**--db-user** and **-w**/**--db-pass**: optionals. If you don't add any of them *mysqldump* will try to get the information automatically from the files *~/.my.log* or *~/.mylogin.log*.
+  * **-d**/**--db-name**: optional. If you don't add it *mysqldump* try to backup all databases from this user.
 
 *.my.log* file must be in the user's home directory (local or remote, depending on the type of backup) and the content should look similar to this:
 
@@ -50,6 +55,19 @@ There are three parameters that controls the database backup:
 user=myuser
 password="mypassword"
 ~~~~
+
+#### PostgreSQL
+* **-e**/**--db-user**: optional
+* **-w**/**--db-pass**: not allowed
+* **-d**/**--db-name**: required
+
+*.pg_pass* file must be in the user's home directory (local or remote, depending on the type of backup) and the content should look similar to this:
+
+~~~~
+localhost:5432:db_name:user:password
+~~~~
+
+where *localhost* is the server and *5432* the standard PostgreSQL port.
 
 ## Author
 

@@ -18,6 +18,8 @@ import sys
 from argparse import ArgumentParser
 from datetime import datetime
 
+import constants as const
+
 
 def process_parameters():
     """ Process the command line arguments and show the help """
@@ -26,7 +28,7 @@ def process_parameters():
 
     parser = ArgumentParser(description=description)
     parser.add_argument('type', help='type of backup',
-                        choices=TYPES)
+                        choices=const.TYPES)
     parser.add_argument('-n', '--name',
                         help='copy name', required=True)
     parser.add_argument('-s', '--serv',
@@ -37,34 +39,51 @@ def process_parameters():
                         help='remote server port', default=22)
     parser.add_argument('-c', '--copy-dir',
                         help='copy directory', required=True)
-    parser.add_argument('-d', '--database',
+    parser.add_argument('-b', '--db-server',
                         help='activate database backup and select '
                              'database server',
-                        choices=DATABASES)
+                        choices=const.DATABASES)
     parser.add_argument('-e', '--db-user',
                         help='database user')
     parser.add_argument('-w', '--db-pass',
-                        help='database password')
+                        help='database user password')
+    parser.add_argument('-d', '--db-name',
+                        help='database name')
 
     try:
         args = parser.parse_args()
     except IOError as msg:
         parser.error(str(msg))
-        sys.exit(EXIT_ARGPARSE_ERROR)
+        sys.exit(const.EXIT_ARGPARSE_ERROR)
 
     # "remote" option require --serv and --user
-    if args.type == REMOTE_TYPE:
+    if args.type == const.REMOTE_TYPE:
         if (args.serv is None or args.user is None):
             parser.error('For "remote" type the parameters --serv '
                          'and --user are required')
-            exit(EXIT_ARGPARSE_ERROR)
+            exit(const.EXIT_ARGPARSE_ERROR)
 
-    if (args.database is None
+    if (args.db_server is None
         and (args.db_user is not None
              or args.db_pass is not None)):
         parser.error('Parameters --db-user or --db-pass '
-                     'are not allowed if --database is not present')
-        exit(EXIT_ARGPARSE_ERROR)
+                     'are not allowed if --db-server is not present')
+        exit(const.EXIT_ARGPARSE_ERROR)
+
+    # PostgreSQL databases
+    if (args.db_server is const.DB_POSTGRESQL):
+        # --db-pass is not allowed
+        if args.db_pass is not None:
+            parser.error('If --db-server is "postgresql" the --db-pass '
+                         'parameter is not allowed. '
+                         'You must use ".pgpass" file.')
+            exit(const.EXIT_ARGPARSE_ERROR)
+
+        # --db-pass is not allowed
+        if args.db_name is None:
+            parser.error('If --db-server is "postgresql" the --db-name '
+                         'parameters is required.')
+            exit(const.EXIT_ARGPARSE_ERROR)
 
     return parser, args
 
@@ -90,12 +109,12 @@ def log_header(level, text):
 def backup_mysql(parser, args):
     """ Dump MySQL/MariaDB databases and rotate backup files """
 
-    log_header(LOG_LEVEL_SECUNDARY, 'MySQL Backup')
+    log_header(const.LOG_LEVEL_SECUNDARY, 'MySQL Backup')
 
     # Dump MySQL databases
     command = 'nice -n 20 mysqldump --all-databases --opt'
 
-    # If args.db_user or args.db-pass are void the script take the values
+    # If args.db_user or args.db_pass are empty the script take the values
     # from some of the default .cnf files: ~/.my.cnf or ~/.mylogin.cnf
     # See: https://dev.mysql.com/doc/refman/8.0/en/option-files.html
     if args.db_user is not None:
@@ -104,40 +123,74 @@ def backup_mysql(parser, args):
         command = command + ' -p' + args.db_pass
     logger.debug(command)
 
-    if args.type == LOCAL_TYPE:
-        command = command + ' > ' + mysql_file
-    elif args.type == REMOTE_TYPE:
-        command = ('ssh -p ' + str(args.port) + ' '
-                   + args.user + '@' + args.serv
-                   + ' ' + command + ' > ' + mysql_file)
+    command = complete_command(command, mysql_file)
 
     logger.debug(command)
     exit_value = os.system(command)
     logger.debug('EXIT:' + str(exit_value))
 
-    if (exit_value == EXIT_NO_ERROR):
-        # Rotate backup files
-        # First delete the last backup
-        mysql_last = mysql_file + '.' + str(backup_days) + '.tar.gz'
-        if os.path.exists(mysql_last):
-            os.remove(mysql_last)
-        # Rotate the rest of backups
-        for i in range(backup_days - 1, 0, -1):
-            mysql_source = mysql_file + '.' + str(i) + '.tar.gz'
-            mysql_destination = mysql_file + '.' + str(i + 1) + '.tar.gz'
-            if os.path.exists(mysql_source):
-                os.rename(mysql_source, mysql_destination)
+    if (exit_value == const.EXIT_NO_ERROR):
+        rotate_logs(mysql_file)
 
-        # Compress the sql file
-        os.system('tar -czPf ' + mysql_file + '.1.tar.gz ' + mysql_file)
-        os.system('ls -lh ' + mysql_file + ' ' + mysql_file +
-                  '.1.tar.gz >> ' + log_last)
+
+def backup_postgresql(parser, args):
+    """ Dump PostgreSQL databases and rotate backup files """
+
+    log_header(const.LOG_LEVEL_SECUNDARY, 'PostgreSQL Backup')
+
+    # Dump MySQL databases
+    command = 'nice -n 20 pg_dump ' + args.db_name
+
+    # If args.db_user is empty the script takes the value
+    # from .pgpass file
+    # See: https://www.postgresql.org/docs/9.3/libpq-pgpass.html
+    if args.db_user is not None:
+        command = command + ' -U ' + args.db_user
+    logger.debug(command)
+
+    command = complete_command(command, postgresql_file)
+
+    logger.debug(command)
+    exit_value = os.system(command)
+    logger.debug('EXIT:' + str(exit_value))
+
+    if (exit_value == const.EXIT_NO_ERROR):
+        rotate_logs(postgresql_file)
+
+
+def complete_command(command, db_file):
+    if args.type == const.LOCAL_TYPE:
+        command = command + ' > ' + db_file
+    elif args.type == const.EMOTE_TYPE:
+        command = ('ssh -p ' + str(args.port) + ' '
+                   + args.user + '@' + args.serv
+                   + ' ' + command + ' > ' + db_file)
+    return command
+
+
+def rotate_logs(db_file):
+    # Rotate backup files
+    # First delete the last backup
+    db_last = db_file + '.' + str(backup_days) + '.tar.gz'
+    if os.path.exists(db_last):
+        os.remove(db_last)
+    # Rotate the rest of backups
+    for i in range(backup_days - 1, 0, -1):
+        db_source = db_file + '.' + str(i) + '.tar.gz'
+        db_destination = db_file + '.' + str(i + 1) + '.tar.gz'
+        if os.path.exists(db_source):
+            os.rename(db_source, db_destination)
+
+    # Compress the sql file
+    os.system('tar -czPf ' + db_file + '.1.tar.gz ' + db_file)
+    os.system('ls -lh ' + db_file + ' ' + db_file +
+              '.1.tar.gz >> ' + log_last)
 
 
 def backup_sync(parser, args):
     """Syncronize files"""
 
-    log_header(LOG_LEVEL_SECUNDARY, 'rsync copy')
+    log_header(const.LOG_LEVEL_SECUNDARY, 'rsync copy')
 
     command = ("rsync -azh -e 'ssh -p " + str(args.port) +
                "' --exclude-from=" + exclude_file +
@@ -152,9 +205,9 @@ def backup_sync(parser, args):
 def backup_files(parser, args):
     log_header(2, 'rdiff-backup copy')
 
-    if args.type == LOCAL_TYPE:
+    if args.type == const.LOCAL_TYPE:
         dir_source = args.copy_dir
-    elif args.type == REMOTE_TYPE:
+    elif args.type == const.REMOTE_TYPE:
         dir_source = dir_sync
 
     command = ('rdiff-backup --print-statistics ' + dir_source + ' '
@@ -171,16 +224,6 @@ def backup_files(parser, args):
 
 
 if __name__ == "__main__":
-    # Constants
-    TYPES = [LOCAL_TYPE, REMOTE_TYPE] = ['local', 'remote']
-    DATABASES = [DB_MYSQL] = ['mysql']
-
-    LOG_LEVEL_PRIMARY = 1
-    LOG_LEVEL_SECUNDARY = 2
-
-    EXIT_NO_ERROR = 0
-    EXIT_ARGPARSE_ERROR = -1
-
     # Calculated
     date = datetime.now().strftime('%d/%m/%Y-%H:%M')
     file_date = datetime.now().strftime('%Y%m%d')
@@ -195,7 +238,7 @@ if __name__ == "__main__":
     backup_days = int(config.get('CONFIG', 'BackupDays'))
     exclude_file = os.path.join(dir_script, config.get('CONFIG',
                                                        'ExcludeFile'))
-    if config.get('CONFIG', 'Develop').upper() in ['Y', 'YES', '1']:
+    if config.get('CONFIG', 'Develop').upper() in const.OPTION_YES:
         error_level = logging.DEBUG
     else:
         error_level = logging.INFO
@@ -207,9 +250,11 @@ if __name__ == "__main__":
     parser, args = process_parameters()
     dir_base = os.path.join(dir_backup, args.name)
     dir_mysql = os.path.join(dir_base, 'mysql')
+    dir_posgresql = os.path.join(dir_base, 'postgresql')
     dir_sync = os.path.join(dir_base, 'sync')
     dir_diff = os.path.join(dir_base, 'diff')
     mysql_file = os.path.join(dir_mysql, args.name + '.sql')
+    postgresql_file = os.path.join(dir_posgresql, args.name + '.sql')
     log_last = os.path.join(dir_log, args.name + '.log')
     log_full = os.path.join(dir_log, args.name + '.full.log')
 
@@ -240,15 +285,17 @@ if __name__ == "__main__":
     logger.debug(log_full)
 
     # MySQL Backup
-    if args.database == DB_MYSQL:
+    if args.db_server == const.DB_MYSQL:
         backup_mysql(parser, args)
+    elif args.db_server == const.DB_POSTGRESQL:
+        backup_postgresql(parser, args)
 
-    if args.type == REMOTE_TYPE:
+    if args.type == const.REMOTE_TYPE:
         backup_sync(parser, args)
 
     backup_files(parser, args)
 
-    log_header(LOG_LEVEL_PRIMARY, 'BACKUP END')
+    log_header(const.LOG_LEVEL_PRIMARY, 'BACKUP END')
     logger.info('')
 
     # Concat log_last with log_full
