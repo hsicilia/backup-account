@@ -57,7 +57,7 @@ password="mypassword"
 ~~~~
 
 #### PostgreSQL
-* **-e**/**--db-user**: optional
+* **-e**/**--db-user**: required
 * **-w**/**--db-pass**: not allowed
 * **-d**/**--db-name**: required
 

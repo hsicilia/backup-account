@@ -71,18 +71,18 @@ def process_parameters():
         exit(const.EXIT_ARGPARSE_ERROR)
 
     # PostgreSQL databases
-    if (args.db_server is const.DB_POSTGRESQL):
+    if (args.db_server == const.DB_POSTGRESQL):
         # --db-pass is not allowed
         if args.db_pass is not None:
-            parser.error('If --db-server is "postgresql" the --db-pass '
+            parser.error('if --db-server value is "postgresql" the --db-pass '
                          'parameter is not allowed. '
                          'You must use ".pgpass" file.')
             exit(const.EXIT_ARGPARSE_ERROR)
 
         # --db-pass is not allowed
-        if args.db_name is None:
-            parser.error('If --db-server is "postgresql" the --db-name '
-                         'parameters is required.')
+        if args.db_user is None or args.db_name is None:
+            parser.error('if --db-server value is "postgresql" the --db-user '
+                         'and --db-name parameters are required.')
             exit(const.EXIT_ARGPARSE_ERROR)
 
     return parser, args
@@ -161,7 +161,7 @@ def backup_postgresql(parser, args):
 def complete_command(command, db_file):
     if args.type == const.LOCAL_TYPE:
         command = command + ' > ' + db_file
-    elif args.type == const.EMOTE_TYPE:
+    elif args.type == const.REMOTE_TYPE:
         command = ('ssh -p ' + str(args.port) + ' '
                    + args.user + '@' + args.serv
                    + ' ' + command + ' > ' + db_file)
@@ -247,18 +247,19 @@ if __name__ == "__main__":
     dir_backup = config.get('DIR', 'DirBackup')
     dir_log = config.get('DIR', 'DirLog')
 
+    # Parameters
     parser, args = process_parameters()
     dir_base = os.path.join(dir_backup, args.name)
     dir_mysql = os.path.join(dir_base, 'mysql')
-    dir_posgresql = os.path.join(dir_base, 'postgresql')
+    dir_postgresql = os.path.join(dir_base, 'postgresql')
     dir_sync = os.path.join(dir_base, 'sync')
     dir_diff = os.path.join(dir_base, 'diff')
     mysql_file = os.path.join(dir_mysql, args.name + '.sql')
-    postgresql_file = os.path.join(dir_posgresql, args.name + '.sql')
+    postgresql_file = os.path.join(dir_postgresql, args.name + '.sql')
     log_last = os.path.join(dir_log, args.name + '.log')
     log_full = os.path.join(dir_log, args.name + '.full.log')
 
-    check_directories(dir_log, dir_base, dir_mysql, dir_diff)
+    check_directories(dir_log, dir_base, dir_mysql, dir_postgresql, dir_diff)
 
     # Logging
 
