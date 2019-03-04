@@ -77,6 +77,19 @@ def process_parameters():
     return parser, args
 
 
+def process_config():
+    config = configparser.ConfigParser()
+    config._interpolation = configparser.ExtendedInterpolation()
+    try:
+        with open(os.path.join(dir_script, const.CONFIG_FILE)) as f:
+            config.read(f)
+    except FileNotFoundError:
+        print(const.CONFIG_ERROR)  # TODO: change this for log to sdtout
+        exit(const.EXIT_CONFIG_ERROR)
+
+    return config
+
+
 def check_directories(*directories):
     """ If directory doesn't exist, create it """
 
@@ -219,22 +232,24 @@ if __name__ == "__main__":
     dir_script = os.path.dirname(os.path.realpath(__file__))
 
     # Read configuration file
-    config = configparser.ConfigParser()
-    config._interpolation = configparser.ExtendedInterpolation()
-    config.read(os.path.join(dir_script, 'backup.ini'))
+    config = process_config()
 
-    # Log CONFIG
-    backup_days = int(config.get('CONFIG', 'BackupDays'))
-    exclude_file = os.path.join(dir_script, config.get('CONFIG',
-                                                       'ExcludeFile'))
-    if config.get('CONFIG', 'Develop').upper() in const.OPTION_YES:
-        error_level = logging.DEBUG
-    else:
-        error_level = logging.INFO
+    try:
+        # Log CONFIG
+        backup_days = int(config.get('CONFIG', 'BackupDays'))
+        exclude_file = os.path.join(dir_script, config.get('CONFIG',
+                                                           'ExcludeFile'))
+        if config.get('CONFIG', 'Develop').upper() in const.OPTION_YES:
+            error_level = logging.DEBUG
+        else:
+            error_level = logging.INFO
 
-    # Log DIR
-    dir_backup = config.get('DIR', 'DirBackup')
-    dir_log = config.get('DIR', 'DirLog')
+        # Log DIR
+        dir_backup = config.get('DIR', 'DirBackup')
+        dir_log = config.get('DIR', 'DirLog')
+    except configparser.Error as e:
+        print(e.message)  # TODO: change this for log to sdtout
+        exit(const.EXIT_CONFIG_ERROR)
 
     # Parameters
     parser, args = process_parameters()

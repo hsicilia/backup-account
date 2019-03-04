@@ -8,27 +8,29 @@ If a copy of the AGPLv3 was not distributed with this file, you can
 obtain one at https://www.gnu.org/licenses/agpl-3.0.html.
 """
 
-# Constants
-TYPES = [LOCAL_TYPE, REMOTE_TYPE] = ['local', 'remote']
-DATABASES = [DB_MYSQL, DB_POSTGRESQL] = ['mysql', 'postgresql']
+# --Constants--
 
+# -Log-
 LOG_LEVEL_PRIMARY = 1
 LOG_LEVEL_SECUNDARY = 2
 
-EXIT_NO_ERROR = 0
-EXIT_ARGPARSE_ERROR = -1
+# -Config-
+CONFIG_FILE = 'backup.ini'
 
 # Options
 OPTION_YES = ['Y', 'YES', '1']
 
-# Argparse
-
+# -Argparse-
 SCRIPT_DESCRIPION = ('Decremental backup of directories and '
                      'databases from local or remote server.')
 SCRIPT_EPILOG = ('''
 Consult README.md for a more detailed description.
 Web: https://github.com/hsicilia/backup-account
                  ''')
+
+TYPES = [LOCAL_TYPE, REMOTE_TYPE] = ['local', 'remote']
+DATABASES = [DB_MYSQL, DB_POSTGRESQL] = ['mysql', 'postgresql']
+
 # List of argparse arguments
 # [short, large, {named arguments}]
 ARGUMENTS = [
@@ -46,6 +48,14 @@ ARGUMENTS = [
     ['-w', '--db-pass', {'help': 'database user password'}],
     ['-d', '--db-name', {'help': 'database name'}]
 ]
+
+# -Exit codes-
+EXIT_NO_ERROR = 0
+EXIT_ARGPARSE_ERROR = -1
+EXIT_CONFIG_ERROR = -2
+
+# -Error messages
+CONFIG_ERROR = 'Error. Config file: "' + CONFIG_FILE + '" not found.'
 
 if __name__ == "__main__":
     print("Error. This module can't be the main one")
