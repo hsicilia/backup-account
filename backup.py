@@ -80,12 +80,14 @@ def process_parameters():
 def process_config():
     config = configparser.ConfigParser()
     config._interpolation = configparser.ExtendedInterpolation()
-    try:
-        with open(os.path.join(dir_script, const.CONFIG_FILE)) as f:
-            config.read(f)
-    except FileNotFoundError:
+    config_file = os.path.join(dir_script, const.CONFIG_FILE)
+
+    # Check if config file exists and is readable
+    if (not (os.path.isfile(config_file) and os.access(config_file, os.R_OK))):
         print(const.CONFIG_ERROR)  # TODO: change this for log to sdtout
         exit(const.EXIT_CONFIG_ERROR)
+
+    config.read(config_file)
 
     return config
 

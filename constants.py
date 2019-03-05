@@ -55,7 +55,10 @@ EXIT_ARGPARSE_ERROR = -1
 EXIT_CONFIG_ERROR = -2
 
 # -Error messages
-CONFIG_ERROR = 'Error. Config file: "' + CONFIG_FILE + '" not found.'
+CONFIG_ERROR = ('Error. Config file: "' + CONFIG_FILE + '" not found '
+                + '(or not readable). '
+                + 'You can copy "' + CONFIG_FILE + '.dist" to "' + CONFIG_FILE
+                + '" and edit it.')
 
 if __name__ == "__main__":
     print("Error. This module can't be the main one")
