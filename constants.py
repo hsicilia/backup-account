@@ -54,13 +54,18 @@ EXIT_NO_ERROR = 0
 EXIT_ARGPARSE_ERROR = -1
 EXIT_CONFIG_ERROR = -2
 
-# -Error messages
+# -Error messages-
 CONFIG_NOT_FOUND_ERROR = ('ERROR. Config file "' + CONFIG_FILE
                           + '" not found (or not readable). '
                           + 'You can copy "' + CONFIG_FILE + '.dist" to "'
                           + CONFIG_FILE
                           + '" and edit it.')
 CONFIG_ERROR = 'ERROR. Config file error: '
+
+
+# -File constants-
+
+EXT_COMPRESS_FILE = '.tar.gz'
 
 if __name__ == "__main__":
     print("Error. This module can't be the main one")
