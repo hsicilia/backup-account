@@ -84,10 +84,14 @@ def process_config():
 
     # Check if config file exists and is readable
     if (not (os.path.isfile(config_file) and os.access(config_file, os.R_OK))):
-        print(const.CONFIG_ERROR)  # TODO: change this for log to sdtout
+        print(const.CONFIG_NOT_FOUND_ERROR)  # TODO: log to sdtout
         exit(const.EXIT_CONFIG_ERROR)
 
-    config.read(config_file)
+    try:
+        config.read(config_file)
+    except configparser.Error as e:
+        print(const.CONFIG_ERROR + e.message)  # TODO: log to sdtout
+        exit(const.EXIT_CONFIG_ERROR)
 
     return config
 
@@ -250,7 +254,7 @@ if __name__ == "__main__":
         dir_backup = config.get('DIR', 'DirBackup')
         dir_log = config.get('DIR', 'DirLog')
     except configparser.Error as e:
-        print(e.message)  # TODO: change this for log to sdtout
+        print(const.CONFIG_ERROR + e.message)  # TODO: log to sdtout
         exit(const.EXIT_CONFIG_ERROR)
 
     # Parameters
