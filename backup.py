@@ -116,10 +116,30 @@ def log_header(args, env, level, text):
                 args.name + ' - ' + text + ' ' + separator)
 
 
+def backup_db(args, env):
+    """ Dump databasee and rotate backup files """
+
+    log_header(args, env,
+               const.LOG_LEVEL_SECUNDARY,
+               env['db_system'] + ' Backup')
+
+    if args.db_server == const.DB_MYSQL:
+        command = backup_mysql(args, env)
+    elif args.db_server == const.DB_POSTGRESQL:
+        command = backup_postgresql(args, env)
+
+    command = complete_command(args, env, command)
+
+    logger.debug(command)
+    exit_value = os.system(command)
+    logger.debug('EXIT:' + str(exit_value))
+
+    if (exit_value == const.EXIT_NO_ERROR):
+        rotate_db_files(args, env)
+
+
 def backup_mysql(args, env):
     """ Dump MySQL/MariaDB databases and rotate backup files """
-
-    log_header(args, env, const.LOG_LEVEL_SECUNDARY, 'MySQL Backup')
 
     # Dump MySQL databases
     command = 'nice -n 20 mysqldump --all-databases --opt'
@@ -131,22 +151,12 @@ def backup_mysql(args, env):
         command = command + ' -u ' + args.db_user
     if args.db_pass is not None:
         command = command + ' -p' + args.db_pass
-    logger.debug(command)
 
-    command = complete_command(command, env['db_file'])
-
-    logger.debug(command)
-    exit_value = os.system(command)
-    logger.debug('EXIT:' + str(exit_value))
-
-    if (exit_value == const.EXIT_NO_ERROR):
-        rotate_db_files(env['db_file'])
+    return command
 
 
 def backup_postgresql(args, env):
     """ Dump PostgreSQL databases and rotate backup files """
-
-    log_header(args, env, const.LOG_LEVEL_SECUNDARY, 'PostgreSQL Backup')
 
     # Dump MySQL databases
     command = 'nice -n 20 pg_dump ' + args.db_name
@@ -156,64 +166,55 @@ def backup_postgresql(args, env):
     # See: https://www.postgresql.org/docs/9.3/libpq-pgpass.html
     if args.db_user is not None:
         command = command + ' -U ' + args.db_user
-    logger.debug(command)
 
-    command = complete_command(command, env['db_file'])
-
-    logger.debug(command)
-    exit_value = os.system(command)
-    logger.debug('EXIT:' + str(exit_value))
-
-    if (exit_value == const.EXIT_NO_ERROR):
-        rotate_db_files(env['db_file'])
+    return command
 
 
-def complete_command(args, command, db_file):
+def complete_command(args, env, command):
     if args.type == const.LOCAL_TYPE:
-        command = command + ' > ' + db_file
+        command = command + ' > ' + env['db_url']
     elif args.type == const.REMOTE_TYPE:
         command = ('ssh -p ' + str(args.port) + ' '
                    + args.user + '@' + args.serv
-                   + ' ' + command + ' > ' + db_file)
+                   + ' ' + command + ' > ' + env['db_url'])
     return command
 
 
 def rotate_db_files(args, env):  # Split parameters WORKING HERE
     # Rotate db backup files
     # First delete the last backup
-    db_last = db_file + '.' + str(backup_days) + const.EXT_COMPRESS_FILE
+    db_last = (env['db_url']
+               + '.' + str(env['backup_days']) + const.EXT_COMPRESS_FILE)
     if os.path.exists(db_last):
         os.remove(db_last)
     # Rotate the rest of backups
-    for i in range(backup_days - 1, 0, -1):
-        db_source = db_file + '.' + str(i) + const.EXT_COMPRESS_FILE
-        db_destination = db_file + '.' + str(i + 1) + const.EXT_COMPRESS_FILE
+    for i in range(env['backup_days'] - 1, 0, -1):
+        db_source = env['db_url'] + '.' + str(i) + const.EXT_COMPRESS_FILE
+        db_destination = (env['db_url'] + '.' + str(i + 1)
+                          + const.EXT_COMPRESS_FILE)
         if os.path.exists(db_source):
             os.rename(db_source, db_destination)
 
     # Compress the sql file
-    #os.system('tar -czPf ' + db_file
-    #          + '.1' + const.EXT_COMPRESS_FILE + ' ' + db_file) WORKING HERE
-    tarfileshutil.make_archive(db_file + '.1', 'gztar', )
-    tar = tarfile.open(dbfile + const.EXT_COMPRESS_FILE, 'w:gz')
-    os.chdir('/home/user')
-    tar.add("file.txt")
+    tar = tarfile.open(env['db_url'] + '.1' + const.EXT_COMPRESS_FILE, 'w:gz')
+    os.chdir(env['dir_db'])
+    tar.add(env['db_filename'])
     tar.close()
 
-    os.system('ls -lh ' + db_file + ' ' + db_file +
-              '.1.tar.gz >> ' + log_last)
+    os.system('ls -lh ' + env['db_url'] + ' ' + env['db_url'] +
+              '.1.tar.gz >> ' + env['log_last'])
 
 
-def backup_sync(args):
+def backup_sync(args, env):
     """Syncronize files"""
 
     log_header(const.LOG_LEVEL_SECUNDARY, 'rsync copy')
 
     command = ("rsync -azh -e 'ssh -p " + str(args.port) +
-               "' --exclude-from=" + exclude_file +
+               "' --exclude-from=" + env['exclude_file'] +
                ' --delete-after --force --stats ' +
                args.user + '@' + args.serv + ':' + args.copy_dir + ' ' +
-               dir_sync + ' >> ' + log_last + ' 2>&1')
+               env['dir_sync'] + ' >> ' + env['log_last'] + ' 2>&1')
 
     logger.debug(command)
     os.system(command)
@@ -275,9 +276,15 @@ if __name__ == "__main__":
     env['dir_postgresql'] = os.path.join(env['dir_base'], 'postgresql')
     env['dir_sync'] = os.path.join(env['dir_base'], 'sync')
     env['dir_diff'] = os.path.join(env['dir_base'], 'diff')
-    env['db_file'] = os.path.join(args.name + '.sql')
     env['log_last'] = os.path.join(env['dir_log'], args.name + '.log')
     env['log_full'] = os.path.join(env['dir_log'], args.name + '.full.log')
+
+    if args.db_server == const.DB_MYSQL:
+        env['dir_db'] = env['dir_mysql']
+        env['db_system'] = 'MySQL'
+    elif args.db_server == const.DB_POSTGRESQL:
+        env['dir_db'] = env['dir_postgresql']
+        env['db_system'] = 'PostgreSQL'
 
     check_directories(
         env['dir_log'],
@@ -285,9 +292,14 @@ if __name__ == "__main__":
         env['dir_diff']
         )
 
+    if args.db_server is not None:
+        env['db_filename'] = args.name + '.sql'
+        env['db_url'] = os.path.join(env['dir_db'], env['db_filename'])
+        check_directories(env['dir_db'])
+
     # Logging
 
-    # Empty last file log
+    # Empty last log file
     with open(env['log_last'], 'w'):
         pass
 
@@ -299,23 +311,24 @@ if __name__ == "__main__":
 
     log_header(args, env, const.LOG_LEVEL_PRIMARY, 'BACKUP BEGIN')
 
-    logger.debug(env['dir_script'])
-    logger.debug(env['exclude_file'])
-    logger.debug(env['dir_backup'])
-    logger.debug(env['dir_log'])
-    logger.debug(env['dir_base'])
-    logger.debug(env['dir_mysql'])
-    logger.debug(env['db_file'])
-    logger.debug(env['log_last'])
-    logger.debug(env['log_full'])
+    # Log parameters
+    logger.debug('Script directory: ' + env['dir_script'])
+    logger.debug('Exclude file: ' + env['exclude_file'])
+    logger.debug('Backup directory: ' + env['dir_backup'])
+    logger.debug('Log directory: ' + env['dir_log'])
+    logger.debug('Last log file: ' + env['log_last'])
+    logger.debug('Full log file: ' + env['log_full'])
+    logger.debug('Base directory: ' + env['dir_base'])
+    logger.debug('Sync directory: ' + env['dir_sync'])
+    logger.debug('Diff directory: ' + env['dir_diff'])
+
+    if args.db_server is not None:
+        logger.debug('Database directory: ' + env['dir_db'])
+        logger.debug('Database filename: ' + env['db_filename'])
+        logger.debug('Database full path: ' + env['db_url'])
 
     # Database Backup
-    if args.db_server == const.DB_MYSQL:
-        check_directories(env['dir_mysql'])
-        backup_mysql(args, env)
-    elif args.db_server == const.DB_POSTGRESQL:
-        check_directories(env['dir_postgresql'])
-        backup_postgresql(args, env)
+    backup_db(args, env)
 
     if args.type == const.REMOTE_TYPE:
         backup_sync(args, env)
