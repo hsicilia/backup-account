@@ -79,7 +79,58 @@ def process_parameters():
     return args
 
 
-def process_config(env):
+def process_env():
+    env = {}
+
+    # General calculated fields
+    env['date'] = datetime.now().strftime('%d/%m/%Y-%H:%M')
+    env['file_date'] = datetime.now().strftime('%Y%m%d')
+    env['dir_script'] = os.path.dirname(os.path.realpath(__file__))
+
+    # Read configuration file
+    config = read_config(env)
+
+    try:
+        env['backup_days'] = int(config.get('CONFIG', 'BackupDays'))
+        env['exclude_file'] = os.path.join(env['dir_script'],
+                                           config.get('CONFIG',
+                                                      'ExcludeFile'))
+        if config.get('CONFIG', 'Develop').upper() in const.OPTION_YES:
+            env['error_level'] = logging.DEBUG
+        else:
+            env['error_level'] = logging.INFO
+
+        env['dir_backup'] = config.get('DIR', 'DirBackup')
+        env['dir_log'] = config.get('DIR', 'DirLog')
+    except configparser.Error as e:
+        print(const.CONFIG_ERROR + e.message)  # TODO: log to sdtout
+        exit(const.EXIT_CONFIG_ERROR)
+
+    # Calculated fields
+    env['dir_base'] = os.path.join(env['dir_backup'], args.name)
+    env['dir_mysql'] = os.path.join(env['dir_base'], 'mysql')
+    env['dir_postgresql'] = os.path.join(env['dir_base'], 'postgresql')
+    env['dir_sync'] = os.path.join(env['dir_base'], 'sync')
+    env['dir_diff'] = os.path.join(env['dir_base'], 'diff')
+    env['log_last'] = os.path.join(env['dir_log'], args.name + '.log')
+    env['log_full'] = os.path.join(env['dir_log'], args.name + '.full.log')
+
+    # Database fields
+    if args.db_server == const.DB_MYSQL:
+        env['dir_db'] = env['dir_mysql']
+        env['db_system'] = 'MySQL'
+    elif args.db_server == const.DB_POSTGRESQL:
+        env['dir_db'] = env['dir_postgresql']
+        env['db_system'] = 'PostgreSQL'
+
+    if args.db_server is not None:
+        env['db_filename'] = args.name + '.sql'
+        env['db_url'] = os.path.join(env['dir_db'], env['db_filename'])
+
+    return env
+
+
+def read_config(env):
     config = configparser.ConfigParser()
     config._interpolation = configparser.ExtendedInterpolation()
     config_file = os.path.join(env['dir_script'], const.CONFIG_FILE)
@@ -98,15 +149,50 @@ def process_config(env):
     return config
 
 
-def check_directories(*directories):
-    """ If directory doesn't exist, create it """
+def config_log():
+    # Empty last log file
+    with open(env['log_last'], 'w'):
+        pass
 
-    for directory in directories:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+    logger.setLevel(env['error_level'])
+
+    fh_last = logging.FileHandler(env['log_last'])
+    formatter_last = logging.Formatter('%(levelname)s:%(message)s')
+    fh_last.setFormatter(formatter_last)
+    logger.addHandler(fh_last)
 
 
-def log_header(args, env, level, text):
+def log_start():
+    log_separator(const.LOG_LEVEL_PRIMARY, 'BACKUP BEGIN')
+
+    # Log parameters
+    logger.debug('Script directory: ' + env['dir_script'])
+    logger.debug('Exclude file: ' + env['exclude_file'])
+    logger.debug('Backup directory: ' + env['dir_backup'])
+    logger.debug('Log directory: ' + env['dir_log'])
+    logger.debug('Last log file: ' + env['log_last'])
+    logger.debug('Full log file: ' + env['log_full'])
+    logger.debug('Base directory: ' + env['dir_base'])
+    logger.debug('Sync directory: ' + env['dir_sync'])
+    logger.debug('Diff directory: ' + env['dir_diff'])
+
+    if args.db_server is not None:
+        logger.debug('Database directory: ' + env['dir_db'])
+        logger.debug('Database filename: ' + env['db_filename'])
+        logger.debug('Database full path: ' + env['db_url'])
+
+
+def log_end():
+    log_separator(const.LOG_LEVEL_PRIMARY, 'BACKUP END')
+    logger.info('')
+
+    # # Concat log_last with log_full
+    with open(env['log_full'], "a+") as dest_file:
+        with open(env['log_last'], "r") as source_file:
+            shutil.copyfileobj(source_file, dest_file)
+
+
+def log_separator(level, text):
     if level == const.LOG_LEVEL_PRIMARY:
         separator = '====='
     else:
@@ -116,19 +202,37 @@ def log_header(args, env, level, text):
                 args.name + ' - ' + text + ' ' + separator)
 
 
-def backup_db(args, env):
-    """ Dump databasee and rotate backup files """
+def check_directories():
+    """ Check if all the necessary directories are created """
 
-    log_header(args, env,
-               const.LOG_LEVEL_SECUNDARY,
+    create_directories(env['dir_log'],
+                       env['dir_base'],
+                       env['dir_diff'])
+
+    if args.db_server is not None:
+        create_directories(env['dir_db'])
+
+
+def create_directories(*directories):
+    """ If directory doesn't exist, create it """
+
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+
+def backup_db():
+    """ Dump database and rotate backup files """
+
+    log_separator(const.LOG_LEVEL_SECUNDARY,
                env['db_system'] + ' Backup')
 
     if args.db_server == const.DB_MYSQL:
-        command = backup_mysql(args, env)
+        command = backup_mysql()
     elif args.db_server == const.DB_POSTGRESQL:
-        command = backup_postgresql(args, env)
+        command = backup_postgresql()
 
-    command = complete_command(args, env, command)
+    command = complete_command(command)
 
     logger.debug(command)
     exit_value = os.system(command)
@@ -138,7 +242,7 @@ def backup_db(args, env):
         rotate_db_files(args, env)
 
 
-def backup_mysql(args, env):
+def backup_mysql():
     """ Dump MySQL/MariaDB databases and rotate backup files """
 
     # Dump MySQL databases
@@ -155,7 +259,7 @@ def backup_mysql(args, env):
     return command
 
 
-def backup_postgresql(args, env):
+def backup_postgresql():
     """ Dump PostgreSQL databases and rotate backup files """
 
     # Dump MySQL databases
@@ -170,7 +274,7 @@ def backup_postgresql(args, env):
     return command
 
 
-def complete_command(args, env, command):
+def complete_command(command):
     if args.type == const.LOCAL_TYPE:
         command = command + ' > ' + env['db_url']
     elif args.type == const.REMOTE_TYPE:
@@ -180,7 +284,7 @@ def complete_command(args, env, command):
     return command
 
 
-def rotate_db_files(args, env):  # Split parameters WORKING HERE
+def rotate_db_files():  # Split parameters WORKING HERE
     # Rotate db backup files
     # First delete the last backup
     db_last = (env['db_url']
@@ -205,10 +309,10 @@ def rotate_db_files(args, env):  # Split parameters WORKING HERE
               '.1.tar.gz >> ' + env['log_last'])
 
 
-def backup_sync(args, env):
+def backup_sync():
     """Syncronize files"""
 
-    log_header(const.LOG_LEVEL_SECUNDARY, 'rsync copy')
+    log_separator(const.LOG_LEVEL_SECUNDARY, 'rsync copy')
 
     command = ("rsync -azh -e 'ssh -p " + str(args.port) +
                "' --exclude-from=" + env['exclude_file'] +
@@ -220,8 +324,8 @@ def backup_sync(args, env):
     os.system(command)
 
 
-def backup_files(args, env):
-    log_header(args, env, const.LOG_LEVEL_SECUNDARY, 'rdiff-backup copy')
+def backup_files():
+    log_separator(const.LOG_LEVEL_SECUNDARY, 'rdiff-backup copy')
 
     if args.type == const.LOCAL_TYPE:
         dir_source = args.copy_dir
@@ -236,111 +340,36 @@ def backup_files(args, env):
     logger.info('-- ' + env['date'] + ' ' + args.name + ' - Deleting old '
                 'rdiff-backup copies')
     command = ('rdiff-backup --remove-older-than $((' + str(env['backup_days'])
-               + '))D --force ' + env['dir_diff'] + ' >> ' + env['log_last'] + ' 2>&1')
+               + '))D --force ' + env['dir_diff'] + ' >> '
+               + env['log_last'] + ' 2>&1')
     logger.debug(command)
     os.system(command)
 
 
 if __name__ == "__main__":
-    env = {}
 
-    # Calculated
-    env['date'] = datetime.now().strftime('%d/%m/%Y-%H:%M')
-    env['file_date'] = datetime.now().strftime('%Y%m%d')
-    env['dir_script'] = os.path.dirname(os.path.realpath(__file__))
-
-    # Read configuration file
-    config = process_config(env)
-
-    try:
-        # Log CONFIG
-        env['backup_days'] = int(config.get('CONFIG', 'BackupDays'))
-        env['exclude_file'] = os.path.join(env['dir_script'],
-                                           config.get('CONFIG',
-                                                      'ExcludeFile'))
-        if config.get('CONFIG', 'Develop').upper() in const.OPTION_YES:
-            env['error_level'] = logging.DEBUG
-        else:
-            env['error_level'] = logging.INFO
-
-        env['dir_backup'] = config.get('DIR', 'DirBackup')
-        env['dir_log'] = config.get('DIR', 'DirLog')
-    except configparser.Error as e:
-        print(const.CONFIG_ERROR + e.message)  # TODO: log to sdtout
-        exit(const.EXIT_CONFIG_ERROR)
-
-    # Parameters
+    # Store script parameters
     args = process_parameters()
-    env['dir_base'] = os.path.join(env['dir_backup'], args.name)
-    env['dir_mysql'] = os.path.join(env['dir_base'], 'mysql')
-    env['dir_postgresql'] = os.path.join(env['dir_base'], 'postgresql')
-    env['dir_sync'] = os.path.join(env['dir_base'], 'sync')
-    env['dir_diff'] = os.path.join(env['dir_base'], 'diff')
-    env['log_last'] = os.path.join(env['dir_log'], args.name + '.log')
-    env['log_full'] = os.path.join(env['dir_log'], args.name + '.full.log')
 
-    if args.db_server == const.DB_MYSQL:
-        env['dir_db'] = env['dir_mysql']
-        env['db_system'] = 'MySQL'
-    elif args.db_server == const.DB_POSTGRESQL:
-        env['dir_db'] = env['dir_postgresql']
-        env['db_system'] = 'PostgreSQL'
+    # Store configuration and other calculated fields at "env" dictionary
+    env = process_env()
 
-    check_directories(
-        env['dir_log'],
-        env['dir_base'],
-        env['dir_diff']
-        )
-
-    if args.db_server is not None:
-        env['db_filename'] = args.name + '.sql'
-        env['db_url'] = os.path.join(env['dir_db'], env['db_filename'])
-        check_directories(env['dir_db'])
-
-    # Logging
-
-    # Empty last log file
-    with open(env['log_last'], 'w'):
-        pass
-
-    logging.basicConfig(
-        format='%(levelname)s:%(message)s',
-        filename=env['log_last'],
-        level=env['error_level'])
+    # Initializing log
     logger = logging.getLogger(__name__)
+    config_log()
 
-    log_header(args, env, const.LOG_LEVEL_PRIMARY, 'BACKUP BEGIN')
+    check_directories()
 
-    # Log parameters
-    logger.debug('Script directory: ' + env['dir_script'])
-    logger.debug('Exclude file: ' + env['exclude_file'])
-    logger.debug('Backup directory: ' + env['dir_backup'])
-    logger.debug('Log directory: ' + env['dir_log'])
-    logger.debug('Last log file: ' + env['log_last'])
-    logger.debug('Full log file: ' + env['log_full'])
-    logger.debug('Base directory: ' + env['dir_base'])
-    logger.debug('Sync directory: ' + env['dir_sync'])
-    logger.debug('Diff directory: ' + env['dir_diff'])
+    log_start()
 
     if args.db_server is not None:
-        logger.debug('Database directory: ' + env['dir_db'])
-        logger.debug('Database filename: ' + env['db_filename'])
-        logger.debug('Database full path: ' + env['db_url'])
-
-    # Database Backup
-    backup_db(args, env)
+        backup_db()
 
     if args.type == const.REMOTE_TYPE:
-        backup_sync(args, env)
+        backup_sync()
 
-    backup_files(args, env)
+    backup_files()
 
-    log_header(args, env, const.LOG_LEVEL_PRIMARY, 'BACKUP END')
-    logger.info('')
-
-    # Concat log_last with log_full
-    with open(env['log_full'], "a+") as dest_file:
-        with open(env['log_last'], "r") as source_file:
-            shutil.copyfileobj(source_file, dest_file)
+    log_end()
 
     exit(0)
