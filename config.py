@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
-Program constants.
+Program configuration variables and constants.
 
 This source code Form is subject to the terms of the GNU Affero
 General Public License, version 3 (AGPLv3).
 If a copy of the AGPLv3 was not distributed with this file, you can
 obtain one at https://www.gnu.org/licenses/agpl-3.0.html.
 """
+
+args = None  # Store script parameters
+
+env = {}  # Store configuration and other calculated fields
+
 
 # --Constants--
 
@@ -55,17 +60,19 @@ EXIT_ARGPARSE_ERROR = -1
 EXIT_CONFIG_ERROR = -2
 
 # -Error messages-
-CONFIG_NOT_FOUND_ERROR = ('ERROR. Config file "' + CONFIG_FILE
+ERROR_CONFIG_NOT_FOUND = ('ERROR. Config file "' + CONFIG_FILE
                           + '" not found (or not readable). '
                           + 'You can copy "' + CONFIG_FILE + '.dist" to "'
                           + CONFIG_FILE
                           + '" and edit it.')
-CONFIG_ERROR = 'ERROR. Config file error: '
+ERROR_CONFIG = 'ERROR. Config file error: '
+ERROR_WRONG_MODULE = "ERROR. Thie module can't be the main one"
 
 
 # -File constants-
 
 EXT_COMPRESS_FILE = '.tar.gz'
 
+
 if __name__ == "__main__":
-    print("Error. This module can't be the main one")
+    print(ERROR_WRONG_MODULE)
