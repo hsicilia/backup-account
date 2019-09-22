@@ -54,10 +54,25 @@ ARGUMENTS = [
     ['-d', '--db-name', {'help': 'database name'}]
 ]
 
+# Argparse errors
+ARGPARSE_ERROR_PARAMS_REQUIRED_REMOTE = ('For "remote" type the parameters '
+                                        '--serv and --user are required')
+ARGPARSE_ERROR_PARAMS_NOT_ALLOWED_SERVER = ('Parameters --db-user or '
+                                            '--db-pass are not allowed if '
+                                            '--db-server is not present')
+ARGPARSE_ERROR_DBPASS_NOT_ALLOWED_POSTGRESQL = ('if --db-server value is '
+                                                '"postgresql" the --db-pass '
+                                                'parameter is not allowed. '
+                                                'You must use ".pgpass" file.')
+ARGPARSE_ERROR_PARAMS_REQUIRED_POSTGRESQL = ('if --db-server value is '
+                                             '"postgresql" the --db-user '
+                                             'and --db-name parameters are'
+                                             'required.')
+
 # -Exit codes-
 EXIT_NO_ERROR = 0
-EXIT_ARGPARSE_ERROR = -1
-EXIT_CONFIG_ERROR = -2
+EXIT_ERROR_ARGPARSE = -1
+EXIT_ERROR_CONFIG = -2
 
 # -Error messages-
 ERROR_CONFIG_NOT_FOUND = ('ERROR. Config file "' + CONFIG_FILE

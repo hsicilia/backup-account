@@ -42,36 +42,31 @@ def process_parameters():
         cfg.args = parser.parse_args()
     except IOError as msg:
         parser.error(str(msg))
-        sys.exit(cfg.EXIT_ARGPARSE_ERROR)
+        sys.exit(cfg.EXIT_ERROR_ARGPARSE)
 
     # "remote" option require --serv and --user
     if cfg.args.type == cfg.REMOTE_TYPE:
         if (cfg.args.serv is None or cfg.args.user is None):
-            parser.error('For "remote" type the parameters --serv '
-                         'and --user are required')
-            exit(cfg.EXIT_ARGPARSE_ERROR)
+            parser.error(cfg.ARGPARSE_ERROR_PARAMS_REQUIRED_REMOTE)
+            exit(cfg.EXIT_ERROR_ARGPARSE)
 
     if (cfg.args.db_server is None
         and (cfg.args.db_user is not None
              or cfg.args.db_pass is not None)):
-        parser.error('Parameters --db-user or --db-pass '
-                     'are not allowed if --db-server is not present')
-        exit(cfg.EXIT_ARGPARSE_ERROR)
+        parser.error(cfg.ARGPARSE_ERROR_PARAMS_NOT_ALLOWED_SERVER)
+        exit(cfg.EXIT_ERROR_ARGPARSE)
 
     # PostgreSQL databases
     if (cfg.args.db_server == cfg.DB_POSTGRESQL):
         # --db-pass is not allowed
         if cfg.args.db_pass is not None:
-            parser.error('if --db-server value is "postgresql" the --db-pass '
-                         'parameter is not allowed. '
-                         'You must use ".pgpass" file.')
-            exit(cfg.EXIT_ARGPARSE_ERROR)
+            parser.error(cfg.ARGPARSE_ERROR_DBPASS_NOT_ALLOWED_POSTGRESQL)
+            exit(cfg.EXIT_ERROR_ARGPARSE)
 
         # --db-pass is not allowed
         if cfg.args.db_user is None or cfg.args.db_name is None:
-            parser.error('if --db-server value is "postgresql" the --db-user '
-                         'and --db-name parameters are required.')
-            exit(cfg.EXIT_ARGPARSE_ERROR)
+            parser.error(cfg.ARGPARSE_ERROR_PARAMS_REQUIRED_POSTGRESQL)
+            exit(cfg.EXIT_ERROR_ARGPARSE)
 
 
 def process_env():
@@ -98,7 +93,7 @@ def process_env():
         cfg.env['dir_backup'] = config.get('DIR', 'DirBackup')
         cfg.env['dir_log'] = config.get('DIR', 'DirLog')
     except configparser.Error as e:
-        print(cfg.CONFIG_ERROR + e.message)  # TODO: log to sdtout
+        print(cfg.ERROR_CONFIG + e.message)  # TODO: log to sdtout
         exit(cfg.EXIT_CONFIG_ERROR)
 
     # Calculated fields
@@ -135,14 +130,14 @@ def read_config_file():
 
     # Check if config file exists and is readable
     if (not (os.path.isfile(config_file) and os.access(config_file, os.R_OK))):
-        print(cfg.CONFIG_NOT_FOUND_ERROR)  # TODO: log to sdtout
-        exit(cfg.EXIT_CONFIG_ERROR)
+        print(cfg.ERROR_CONFIG_NOT_FOUND)  # TODO: log to sdtout
+        exit(cfg.EXIT_ERROR_CONFIG)
 
     try:
         config.read(config_file)
     except configparser.Error as e:
-        print(cfg.CONFIG_ERROR + e.message)  # TODO: log to sdtout
-        exit(cfg.EXIT_CONFIG_ERROR)
+        print(cfg.ERROR_CONFIG + e.message)  # TODO: log to sdtout
+        exit(cfg.EXIT_ERROR_CONFIG)
 
     return config
 
