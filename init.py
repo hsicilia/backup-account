@@ -78,20 +78,40 @@ def process_env():
     cfg.env['dir_script'] = os.path.dirname(os.path.realpath(__file__))
 
     # Read configuration file
-    config = read_config_file()
+    cfg_params = read_config_file()
 
     try:
-        cfg.env['backup_days'] = int(config.get('CONFIG', 'BackupDays'))
+        # CONFIG
+        # BackupDays
+        cfg.env['backup_days'] = int(cfg_params('CONFIG', 'BackupDays'))
+
+        # BackupMethod
+        if cfg_params('CONFIG', 'BackupMethod').upper() in cfg.OPTION_RDIFF:
+            cfg.env['backup_method'] = cfg.BACKUP_METHOD_RDIFF
+        elif cfg_params('CONFIG', 'BackupMethod').upper() in cfg.OPTION_RSYNC:
+            cfg.env['backup_method'] = cfg.BACKUP_METHOD_RSYNC
+
+        # RemoteRSync
+        cfg.env['remote_rsync'] = cfg_params.get('CONFIG', 'RemoteRSync').upper() in cfg.OPTION_YES
+
+        # ExcludeFile
         cfg.env['exclude_file'] = os.path.join(cfg.env['dir_script'],
-                                               config.get('CONFIG',
+                                               cfg_params('CONFIG',
                                                           'ExcludeFile'))
-        if config.get('CONFIG', 'Develop').upper() in cfg.OPTION_YES:
+
+        # Develop
+        if cfg_params('CONFIG', 'Develop').upper() in cfg.OPTION_YES:
             cfg.env['error_level'] = logging.DEBUG
         else:
             cfg.env['error_level'] = logging.INFO
 
-        cfg.env['dir_backup'] = config.get('DIR', 'DirBackup')
-        cfg.env['dir_log'] = config.get('DIR', 'DirLog')
+        # DIR
+        # DirBackup
+        cfg.env['dir_backup'] = cfg_params('DIR', 'DirBackup')
+
+        # DirLog
+        cfg.env['dir_log'] = cfg_params('DIR', 'DirLog')
+
     except configparser.Error as e:
         print(cfg.ERROR_CONFIG + e.message)  # TODO: log to sdtout
         exit(cfg.EXIT_CONFIG_ERROR)

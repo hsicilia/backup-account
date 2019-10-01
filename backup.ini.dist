@@ -2,27 +2,21 @@
 # BackupDays: Days to store the backups
 BackupDays = 3
 
-# BackupMethod: Select default backup method
+# BackupMethod: Select default backup method "rdiff-backup" or "rsync"
 BackupMethod = rdiff-backup
-# BackupMethod = sync
+# BackupMethod = rsync
 
-# RemoteSync: Y to use "sync" command to copy files from remote server.
+# RemoteRsync: "Yes" to use "rsync" command to copy files from remote server.
 # After that the script use BackupMethod to make a local backup.
-# Activate this option only if remote server hasn't installed rdiff-backup
+# Only activate this option if remote server doesn't have installed rdiff-backup
 # because it doubles the size of the backup.
-RemoteSync = N
-
-# RemoteMethod:
-RemoteMethod = rdiff-backup
-# RemoteMethod = sync
-
-# RemoteMethod = sync+rdiff-backup
+RemoteRsync = No
 
 # ExcludeFile: File with file and directory names to exclude from backup
 # ExcludeFile = exclude-files
 
-# Develop: N for a basic log or Y for a detailed log
-Develop = N
+# Develop: "No" for a basic log or "Yes" for a detailed log
+Develop = No
 
 [DIR]
 # DirBackup: Base directory where store the backups

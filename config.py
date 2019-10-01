@@ -24,6 +24,11 @@ CONFIG_FILE = 'backup.ini'
 
 # Options
 OPTION_YES = ['Y', 'YES', '1']
+OPTION_RDIFF = ['RDIFF_BACKUP', 'RDIFF']
+OPTION_RSYNC = ['RSYNC']
+
+BACKUP_METHOD_RDIFF = 1
+BACKUP_METHOD_RSYNC = 2
 
 # -Argparse-
 SCRIPT_DESCRIPION = ('Decremental backup of directories and '
